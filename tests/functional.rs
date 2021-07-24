@@ -1,10 +1,27 @@
+use solana_sdk::program_pack::Pack;
+use solana_program_test::BanksClient;
 use solana_sdk::{signature::Signer, transaction::Transaction,
     instruction::{AccountMeta, Instruction}, pubkey::Pubkey, system_program,
-    sysvar, system_instruction
+    sysvar
 };
 use solana_program_test::{processor, tokio, ProgramTest, ProgramTestBanksClientExt};
 use assert_matches::assert_matches;
 use create_ata_if_missing::process_instruction;
+
+pub async fn get_token_account(
+    banks_client: &mut BanksClient,
+    token_account_pubkey: Pubkey,
+) -> spl_token::state::Account {
+    spl_token::state::Account::unpack_from_slice(
+        &banks_client
+            .get_account(token_account_pubkey)
+            .await
+            .unwrap()
+            .unwrap()
+            .data,
+    )
+    .unwrap()
+}
 
 #[tokio::test]
 async fn test_process() {
@@ -63,6 +80,13 @@ async fn test_process() {
             .await,
         Ok(())
     );
+
+    let ata_account_state =
+        get_token_account(&mut banks_client, ata_address)
+        .await;
+
+    assert_eq!(user_address, ata_account_state.owner);
+    assert_eq!(token_mint_address, ata_account_state.mint);
 
     // User ATA exists
     // It is essential to get a new blockhash, otherwise the transaction is identical, then dropped
